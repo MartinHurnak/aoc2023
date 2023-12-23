@@ -1,24 +1,21 @@
 from collections import deque
+import numpy as np
 
-with open("10/test.txt") as f:
+with open("10/input.txt") as f:
     map = f.readlines()
 
-visited = []
-for row in map:
-    visited.append([None] * len(row))
-
-for i in range(len(map)):
-    j = map[i].find("S")
-    if j != -1:
-        break
-
+map = np.array([list(row.strip()) for row in map])
+visited = np.zeros_like(map, dtype=int)
+start = (
+    np.where(map == "S")[0][0],
+    np.where(map == "S")[1][0],
+)
 stack = deque()
 
 
-def go(map, x, y):
-    tile = map[x][y]
-    visited[x][y] = True
-    # print(x, y, d+1)
+def go(map, y, x):
+    tile = map[y, x]
+    visited[y, x] = True
     north, south, west, east = False, False, False, False
     if tile == "F":
         south, east = True, True
@@ -33,40 +30,61 @@ def go(map, x, y):
     elif tile == "-":
         east, west = True, True
     elif tile == "S":
-        if x > 0 and map[x - 1][y] in ["|", "F", "7"]:
+        if y > 0 and map[y - 1, x] in ["|", "F", "7"]:
             north = True
-        if x < len(map) - 1 and map[x + 1][y] in ["|", "L", "J"]:
+        if y < len(map) - 1 and map[y + 1, x] in ["|", "L", "J"]:
             south = True
-        if y > 0 and map[x][y - 1] in ["-", "F", "L"]:
+        if x > 0 and map[y, x - 1] in ["-", "F", "L"]:
             west = True
-        if y < len(map[x]) - 1 and map[x][y + 1] in ["-", "7", "J"]:
+        if x < len(map[y]) - 1 and map[y, x + 1] in ["-", "7", "J"]:
             east = True
+        if north and south:
+            map[y, x] = "|"
+        elif north and east:
+            map[y, x] = "L"
+        elif north and west:
+            map[y, x] = "J"
+        elif south and east:
+            map[y, x] = "F"
+        elif south and west:
+            map[y, x] = "7"
+        elif west and east:
+            map[y, x] = "-"
 
-    if north and not visited[x - 1][y]:
-        visited[x - 1][y] = True
-        # print("GO", x-1, y, d+2)
-        stack.append(lambda: go(map, x - 1, y))
+    if north and not visited[y - 1, x]:
+        visited[y - 1, x] = True
+        stack.append(lambda: go(map, y - 1, x))
 
-    if south and not visited[x + 1][y]:
-        visited[x + 1][y] = True
-        # print("GO", x+1, y, d+2)
-        stack.append(lambda: go(map, x + 1, y))
+    if south and not visited[y + 1, x]:
+        visited[y + 1, x] = True
+        stack.append(lambda: go(map, y + 1, x))
 
-    if west and not visited[x][y - 1]:
-        visited[x][y - 1] = True
-        # print("GO", x, y-1, d+2)
-        stack.append(lambda: go(map, x, y - 1))
+    if west and not visited[y, x - 1]:
+        visited[y, x - 1] = True
+        stack.append(lambda: go(map, y, x - 1))
 
-    if east and not visited[x][y + 1]:
-        visited[x][y + 1] = True
-        # print("GO", x, y+1, d+2)
-        stack.append(lambda: go(map, x, y + 1))
+    if east and not visited[y, x + 1]:
+        visited[y, x + 1] = True
+        stack.append(lambda: go(map, y, x + 1))
 
 
-
-
-go(map, i, j)
+# find the main loop
+go(map, *start)
 while stack:
     stack.popleft()()
 
-print(visited)
+# remove all the pipes that are not the part of the main loop
+map[visited != 1] = "."
+
+# out of each "." shoot ray to the west. if it goes through odd number of edges, tile is inside
+# if it goes through even number of edges, tile is outside
+# bends will be bypassed from the south side, so we can pass around J and L but F and 7 are considered as edges
+inside = 0
+for y, row in enumerate(map):
+    for x, tile in enumerate(row):
+        if tile == ".":
+            if np.sum(np.isin(map[y, 0:x], ("F", "7", "|"))) % 2 == 1:
+                inside += 1
+
+
+print(inside)
